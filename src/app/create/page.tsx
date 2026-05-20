@@ -3,8 +3,17 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useState } from 'react';
+import type { Thing, Creator } from '@/lib/types';
 
 type NLType = 'creator-spotlight' | 'the-build';
+
+const IMAGE_CDN = 'https://cdn.thingiverse.com';
+
+function cdnUrl(path: string | null): string {
+  if (!path) return 'https://cdn.thingiverse.com/site/img/default/G0x0.jpg';
+  if (path.startsWith('http')) return path;
+  return `${IMAGE_CDN}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 interface ScheduledSend {
   id: string;
@@ -15,7 +24,6 @@ interface ScheduledSend {
 function getNextTuesday(): string {
   const d = new Date();
   const day = d.getDay();
-  // Advance to next Tuesday (2) or Wednesday (3), whichever is soonest and > today
   const daysUntilTue = ((2 - day + 7) % 7) || 7;
   d.setDate(d.getDate() + daysUntilTue);
   return d.toISOString().slice(0, 10);
@@ -53,6 +61,20 @@ function CreatePageInner() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
 
+  // Pulled data state
+  const [pulledThings, setPulledThings] = useState<Thing[] | null>(null);
+  const [pulledCreators, setPulledCreators] = useState<Creator[] | null>(null);
+  const [pullLoading, setPullLoading] = useState(false);
+  const [pullError, setPullError] = useState('');
+
+  // Editing state for The Build
+  const [introText, setIntroText] = useState('Here are some projects that caught our eye this week.');
+  const [descriptions, setDescriptions] = useState<Record<number, string>>({});
+
+  // Editing state for Creator Spotlight
+  const [taglines, setTaglines] = useState<Record<number, string>>({});
+  const [bios, setBios] = useState<Record<number, string>>({});
+
   const [testEmail, setTestEmail] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [testError, setTestError] = useState('');
@@ -80,25 +102,104 @@ function CreatePageInner() {
         ? 'The Build: '
         : 'Creator Spotlight: Meet This Week\'s Featured Makers'
     );
+    // Reset pulled data when switching type
+    setPulledThings(null);
+    setPulledCreators(null);
+    setDescriptions({});
+    setTaglines({});
+    setBios({});
   }
 
-  const handlePreview = useCallback(async () => {
+  // Step 1a: Pull data from Metabase
+  const handlePullData = useCallback(async () => {
     if (!type) return;
-    setPreviewLoading(true);
-    setPreviewError('');
+    setPullLoading(true);
+    setPullError('');
 
     const filledUrls = urls.filter((u) => u.trim());
     if (filledUrls.length === 0) {
-      setPreviewError('Enter at least one URL');
-      setPreviewLoading(false);
+      setPullError('Enter at least one URL');
+      setPullLoading(false);
       return;
     }
 
     try {
-      const res = await fetch('/api/preview', {
+      const res = await fetch('/api/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, urls: filledUrls }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Pull failed');
+      }
+
+      const data = await res.json();
+
+      if (type === 'the-build') {
+        const things = data.data as Thing[];
+        setPulledThings(things);
+        // Initialize descriptions from pulled data (empty by default)
+        const descs: Record<number, string> = {};
+        for (const t of things) {
+          descs[t.id] = t.description || '';
+        }
+        setDescriptions(descs);
+      } else {
+        const creators = data.data as Creator[];
+        setPulledCreators(creators);
+        // Pre-fill bios from DB data, taglines empty
+        const newBios: Record<number, string> = {};
+        const newTaglines: Record<number, string> = {};
+        for (const c of creators) {
+          newBios[c.id] = c.bio || '';
+          newTaglines[c.id] = c.tagline || '';
+        }
+        setBios(newBios);
+        setTaglines(newTaglines);
+      }
+    } catch (err: unknown) {
+      setPullError(err instanceof Error ? err.message : 'Pull failed');
+    } finally {
+      setPullLoading(false);
+    }
+  }, [type, urls]);
+
+  // Step 1b: Generate preview with edited data
+  const handleGeneratePreview = useCallback(async () => {
+    if (!type) return;
+    setPreviewLoading(true);
+    setPreviewError('');
+
+    try {
+      let body: Record<string, unknown>;
+
+      if (type === 'the-build' && pulledThings) {
+        // Merge descriptions into things
+        const enrichedThings = pulledThings.map((t) => ({
+          ...t,
+          description: descriptions[t.id] || '',
+        }));
+        body = { type, things: enrichedThings, introText };
+      } else if (type === 'creator-spotlight' && pulledCreators) {
+        // Merge taglines and bios into creators
+        const enrichedCreators = pulledCreators.map((c) => ({
+          ...c,
+          tagline: taglines[c.id] || '',
+          bio: bios[c.id] || '',
+        }));
+        body = { type, creators: enrichedCreators };
+      } else {
+        setPreviewError('No data pulled yet');
+        setPreviewLoading(false);
+        return;
+      }
+
+      const res = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -114,7 +215,7 @@ function CreatePageInner() {
     } finally {
       setPreviewLoading(false);
     }
-  }, [type, urls]);
+  }, [type, pulledThings, pulledCreators, descriptions, taglines, bios, introText]);
 
   async function handleTestSend() {
     if (!testEmail.trim()) return;
@@ -325,10 +426,12 @@ function CreatePageInner() {
     );
   }
 
-  /* ----- Step 1: Type + URLs ----- */
+  /* ----- Step 1: Type + URLs + Edit ----- */
   const urlLabel = type === 'the-build' ? 'Thing URL' : 'Creator Profile URL';
   const urlPlaceholder =
     type === 'the-build' ? 'thingiverse.com/thing:12345' : 'thingiverse.com/username';
+
+  const hasPulledData = type === 'the-build' ? !!pulledThings : !!pulledCreators;
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
@@ -405,25 +508,242 @@ function CreatePageInner() {
             />
           </div>
 
-          {previewError && <p className="mb-4 text-sm text-tv-red">{previewError}</p>}
+          {pullError && <p className="mb-4 text-sm text-tv-red">{pullError}</p>}
 
-          <button
-            onClick={handlePreview}
-            disabled={previewLoading}
-            className="w-full rounded-lg bg-tv-blue px-6 py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {previewLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
-                </svg>
-                Pulling data...
-              </span>
-            ) : (
-              'Pull Data and Preview'
-            )}
-          </button>
+          {/* Pull Data button (only show if no data yet) */}
+          {!hasPulledData && (
+            <button
+              onClick={handlePullData}
+              disabled={pullLoading}
+              className="w-full rounded-lg bg-tv-blue px-6 py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {pullLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                  </svg>
+                  Pulling data...
+                </span>
+              ) : (
+                'Pull Data'
+              )}
+            </button>
+          )}
+
+          {/* ---- Editing Section: The Build ---- */}
+          {type === 'the-build' && pulledThings && (
+            <div className="mt-8 space-y-6">
+              <h2 className="text-lg font-bold text-tv-dark">Edit Content</h2>
+
+              {/* Intro text */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Intro Text
+                </label>
+                <textarea
+                  value={introText}
+                  onChange={(e) => setIntroText(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-tv-blue focus:outline-none focus:ring-2 focus:ring-tv-blue/30"
+                />
+              </div>
+
+              {/* Thing editing cards */}
+              {pulledThings.map((thing) => (
+                <div
+                  key={thing.id}
+                  className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex gap-4">
+                    {/* Thumbnail */}
+                    <div className="flex-shrink-0">
+                      <img
+                        src={cdnUrl(thing.imagePath)}
+                        alt={thing.name}
+                        className="h-20 w-20 rounded-lg object-cover"
+                      />
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-tv-dark truncate">{thing.name}</p>
+                      <p className="text-xs text-gray-500">
+                        by {thing.creator.firstName || thing.creator.username} {thing.creator.lastName}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-medium text-gray-500">
+                      Description
+                    </label>
+                    <textarea
+                      value={descriptions[thing.id] || ''}
+                      onChange={(e) =>
+                        setDescriptions((prev) => ({
+                          ...prev,
+                          [thing.id]: e.target.value,
+                        }))
+                      }
+                      rows={3}
+                      placeholder="Write an editorial description for this thing..."
+                      className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-tv-blue focus:outline-none focus:ring-2 focus:ring-tv-blue/30"
+                    />
+                  </div>
+
+                  {/* Secondary images */}
+                  {thing.secondaryImages.length > 0 && (
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs font-medium text-gray-500">
+                        Secondary Images ({thing.secondaryImages.length})
+                      </label>
+                      <div className="flex gap-2">
+                        {thing.secondaryImages.map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={cdnUrl(img)}
+                            alt=""
+                            className="h-16 w-24 rounded-md object-cover border border-gray-100"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {previewError && <p className="text-sm text-tv-red">{previewError}</p>}
+
+              <button
+                onClick={handleGeneratePreview}
+                disabled={previewLoading}
+                className="w-full rounded-lg bg-tv-blue px-6 py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {previewLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Generating preview...
+                  </span>
+                ) : (
+                  'Generate Preview'
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ---- Editing Section: Creator Spotlight ---- */}
+          {type === 'creator-spotlight' && pulledCreators && (
+            <div className="mt-8 space-y-6">
+              <h2 className="text-lg font-bold text-tv-dark">Edit Content</h2>
+
+              {/* Creator editing cards */}
+              {pulledCreators.map((creator) => {
+                const fullName = `${creator.firstName} ${creator.lastName}`.trim() || creator.username;
+                return (
+                  <div
+                    key={creator.id}
+                    className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex gap-4">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <img
+                          src={cdnUrl(creator.avatarPath)}
+                          alt={fullName}
+                          className="h-16 w-16 rounded-full object-cover border-2 border-[#2b52fe]"
+                        />
+                      </div>
+                      {/* Name */}
+                      <div className="flex-1 min-w-0 flex items-center">
+                        <p className="text-sm font-semibold text-tv-dark">{fullName}</p>
+                      </div>
+                    </div>
+
+                    {/* Tagline */}
+                    <div className="mt-4">
+                      <label className="mb-1 block text-xs font-medium text-gray-500">
+                        Tagline
+                      </label>
+                      <input
+                        type="text"
+                        value={taglines[creator.id] || ''}
+                        onChange={(e) =>
+                          setTaglines((prev) => ({
+                            ...prev,
+                            [creator.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Custom tagline, e.g. 'Master of miniatures' (leave blank for auto-generated)"
+                        className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-tv-blue focus:outline-none focus:ring-2 focus:ring-tv-blue/30"
+                      />
+                    </div>
+
+                    {/* Bio */}
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs font-medium text-gray-500">
+                        Bio
+                      </label>
+                      <textarea
+                        value={bios[creator.id] || ''}
+                        onChange={(e) =>
+                          setBios((prev) => ({
+                            ...prev,
+                            [creator.id]: e.target.value,
+                          }))
+                        }
+                        rows={3}
+                        placeholder="Creator bio..."
+                        className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-tv-blue focus:outline-none focus:ring-2 focus:ring-tv-blue/30"
+                      />
+                    </div>
+
+                    {/* Designs preview */}
+                    {creator.designs.length > 0 && (
+                      <div className="mt-3">
+                        <label className="mb-1 block text-xs font-medium text-gray-500">
+                          Designs ({creator.designs.length})
+                        </label>
+                        <div className="flex gap-2">
+                          {creator.designs.map((d) => (
+                            <img
+                              key={d.id}
+                              src={cdnUrl(d.imagePath)}
+                              alt={d.name}
+                              className="h-16 w-24 rounded-md object-cover border border-gray-100"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {previewError && <p className="text-sm text-tv-red">{previewError}</p>}
+
+              <button
+                onClick={handleGeneratePreview}
+                disabled={previewLoading}
+                className="w-full rounded-lg bg-tv-blue px-6 py-3 font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {previewLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Generating preview...
+                  </span>
+                ) : (
+                  'Generate Preview'
+                )}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

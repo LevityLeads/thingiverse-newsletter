@@ -4,6 +4,7 @@ export interface Creator {
   firstName: string;
   lastName: string;
   bio: string;
+  tagline: string;
   avatarPath: string | null;
   designs: Design[];
 }
@@ -25,6 +26,7 @@ export interface Thing {
   collectCount: number;
   commentCount: number;
   imagePath: string | null;
+  secondaryImages: string[];
   creator: {
     username: string;
     firstName: string;
@@ -36,6 +38,7 @@ export interface Banner {
   name: string;
   imageUrl: string;
   linkUrl: string;
+  description: string;
   active: boolean;
 }
 

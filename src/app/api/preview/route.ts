@@ -1,58 +1,19 @@
 import { NextResponse } from 'next/server';
-import type { NewsletterType } from '@/lib/types';
+import type { NewsletterType, Thing, Creator } from '@/lib/types';
 import { BANNERS } from '@/lib/config';
 import { fetchCreators, fetchThings } from '@/lib/metabase';
 import { renderCreatorSpotlight } from '@/lib/templates/creator-spotlight';
 import { renderTheBuild } from '@/lib/templates/the-build';
-
-function normalizeUrl(url: string): string {
-  let u = url.trim();
-  if (!u.startsWith('http://') && !u.startsWith('https://')) {
-    u = 'https://' + u;
-  }
-  return u;
-}
-
-function parseUsername(url: string): string | null {
-  try {
-    const parsed = new URL(normalizeUrl(url));
-    const parts = parsed.pathname.split('/').filter(Boolean);
-    if (parts.length === 0) return null;
-    if (parts[0].startsWith('thing:')) return null;
-    return parts[0];
-  } catch {
-    return null;
-  }
-}
-
-function parseThingId(url: string): number | null {
-  // Handle bare "thing:12345" input
-  const bareMatch = url.trim().match(/^thing:(\d+)/);
-  if (bareMatch) return parseInt(bareMatch[1], 10);
-
-  try {
-    const parsed = new URL(normalizeUrl(url));
-    const parts = parsed.pathname.split('/').filter(Boolean);
-    for (const part of parts) {
-      const match = part.match(/^thing:(\d+)/);
-      if (match) return parseInt(match[1], 10);
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { parseUsername, parseThingId } from '@/lib/url-parser';
 
 export async function POST(request: Request) {
   try {
-    const { type, urls } = (await request.json()) as {
-      type: NewsletterType;
-      urls: string[];
-    };
+    const body = await request.json();
+    const { type } = body as { type: NewsletterType };
 
-    if (!type || !urls || !Array.isArray(urls) || urls.length === 0) {
+    if (!type) {
       return NextResponse.json(
-        { error: 'type and urls are required' },
+        { error: 'type is required' },
         { status: 400 }
       );
     }
@@ -60,54 +21,79 @@ export async function POST(request: Request) {
     const activeBanners = BANNERS.filter((b) => b.active);
 
     if (type === 'creator-spotlight') {
-      const usernames = urls
-        .map(parseUsername)
-        .filter((u): u is string => u !== null);
+      let creators: Creator[];
 
-      if (usernames.length === 0) {
+      if (body.creators && Array.isArray(body.creators) && body.creators.length > 0) {
+        // New flow: pre-built data with taglines/bios from UI
+        creators = body.creators;
+      } else if (body.urls && Array.isArray(body.urls) && body.urls.length > 0) {
+        // Legacy flow: fetch from Metabase
+        const usernames = (body.urls as string[])
+          .map(parseUsername)
+          .filter((u): u is string => u !== null);
+
+        if (usernames.length === 0) {
+          return NextResponse.json(
+            { error: 'No valid creator URLs found' },
+            { status: 400 }
+          );
+        }
+
+        creators = await fetchCreators(usernames);
+
+        if (creators.length === 0) {
+          return NextResponse.json(
+            { error: `Metabase returned no data for usernames: ${usernames.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
+            { status: 404 }
+          );
+        }
+      } else {
         return NextResponse.json(
-          { error: 'No valid creator URLs found' },
+          { error: 'creators array or urls array is required' },
           { status: 400 }
-        );
-      }
-
-      const creators = await fetchCreators(usernames);
-
-      if (creators.length === 0) {
-        return NextResponse.json(
-          { error: `Metabase returned no data for usernames: ${usernames.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
-          { status: 404 }
         );
       }
 
       const html = renderCreatorSpotlight(creators, activeBanners);
-
       return NextResponse.json({ html, data: creators });
     }
 
     if (type === 'the-build') {
-      const thingIds = urls
-        .map(parseThingId)
-        .filter((id): id is number => id !== null);
+      let things: Thing[];
+      const introText: string | undefined = body.introText;
 
-      if (thingIds.length === 0) {
+      if (body.things && Array.isArray(body.things) && body.things.length > 0) {
+        // New flow: pre-built data with descriptions from UI
+        things = body.things;
+      } else if (body.urls && Array.isArray(body.urls) && body.urls.length > 0) {
+        // Legacy flow: fetch from Metabase
+        const thingIds = (body.urls as string[])
+          .map(parseThingId)
+          .filter((id): id is number => id !== null);
+
+        if (thingIds.length === 0) {
+          return NextResponse.json(
+            { error: 'No valid thing URLs found' },
+            { status: 400 }
+          );
+        }
+
+        things = await fetchThings(thingIds);
+
+        if (things.length === 0) {
+          return NextResponse.json(
+            { error: `Metabase returned no data for thing IDs: ${thingIds.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
+            { status: 404 }
+          );
+        }
+      } else {
         return NextResponse.json(
-          { error: 'No valid thing URLs found' },
+          { error: 'things array or urls array is required' },
           { status: 400 }
         );
       }
 
-      const things = await fetchThings(thingIds);
-
-      if (things.length === 0) {
-        return NextResponse.json(
-          { error: `Metabase returned no data for thing IDs: ${thingIds.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
-          { status: 404 }
-        );
-      }
-
-      const html = renderTheBuild(things, activeBanners);
-
+      const html = renderTheBuild(things, activeBanners, introText);
       return NextResponse.json({ html, data: things });
     }
 

@@ -5,7 +5,6 @@ import {
   renderWrapper,
   renderHeader,
   renderFooter,
-  renderBanners,
   renderDivider,
 } from './shared';
 
@@ -69,6 +68,31 @@ ${rows.join('\n')}
 }
 
 /**
+ * Render banner section with descriptions.
+ * Each banner gets a full-width image and a description line beneath it.
+ */
+function renderBannerSection(banners: Banner[]): string {
+  const activeBanners = banners.filter((b) => b.active);
+  if (activeBanners.length === 0) return '';
+
+  const divider = `      <tr><td style="padding:28px 40px 0;" class="mobile-pad"><div style="border-top:1px solid #eee;"></div></td></tr>`;
+
+  const bannerRows = activeBanners
+    .map((banner, i) => {
+      const topPad = i === 0 ? '24px' : '16px';
+      return `      <tr><td style="padding:${topPad} 0 0;">
+        <a href="${banner.linkUrl}" style="text-decoration:none;">
+          <img src="${banner.imageUrl}" alt="${banner.name}" width="600" style="width:100%;display:block;border-radius:8px;" />
+        </a>
+        <p style="margin:8px 0 0;font-size:13px;color:#555;line-height:1.5;text-align:center;padding:0 40px;">${banner.description}</p>
+      </td></tr>`;
+    })
+    .join('\n');
+
+  return `${divider}\n\n${bannerRows}`;
+}
+
+/**
  * Render a single creator section: avatar, name, tagline, bio, design grid.
  */
 function renderCreator(creator: Creator): string {
@@ -76,12 +100,17 @@ function renderCreator(creator: Creator): string {
   const profileUrl = `${THINGIVERSE_URL}/${creator.username}`;
   const fullName = `${creator.firstName} ${creator.lastName}`.trim() || creator.username;
 
-  // Generate a tagline from design count + likes
-  const totalLikes = creator.designs.reduce((sum, d) => sum + d.likeCount, 0);
-  const tagline =
-    totalLikes > 1000
-      ? `${creator.designs.length} Designs, ${Math.round(totalLikes / 1000)}K Likes`
-      : `${creator.designs.length} Designs`;
+  // Use custom tagline if provided, otherwise auto-generate from stats
+  let tagline: string;
+  if (creator.tagline) {
+    tagline = creator.tagline;
+  } else {
+    const totalLikes = creator.designs.reduce((sum, d) => sum + d.likeCount, 0);
+    tagline =
+      totalLikes > 1000
+        ? `${creator.designs.length} Designs, ${Math.round(totalLikes / 1000)}K Likes`
+        : `${creator.designs.length} Designs`;
+  }
 
   const bioHtml = creator.bio
     ? `\n                <tr><td style="padding:10px 50px 0;text-align:center;" class="mobile-pad">
@@ -110,11 +139,11 @@ ${renderDesignGrid(creator.designs)}
  * Render the full "Creator Spotlight" newsletter HTML.
  *
  * @param creators - Featured creators with their designs
- * @param _banners - Banners (kept in signature for compatibility, not rendered inline)
+ * @param banners - Banners to render at the bottom with descriptions
  */
 export function renderCreatorSpotlight(
   creators: Creator[],
-  _banners: Banner[]
+  banners: Banner[]
 ): string {
   const titleSection = `                <!-- Title -->
                 <tr><td style="padding:28px 40px 24px;text-align:center;" class="mobile-pad">
@@ -134,12 +163,15 @@ export function renderCreatorSpotlight(
     })
     .join('\n\n');
 
+  const bannerSection = renderBannerSection(banners);
+
   const content = [
     renderHeader(),
     titleSection,
     creatorSections,
+    bannerSection,
     renderFooter(),
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 
   return renderWrapper(content, {
     title: 'Creator Spotlight',

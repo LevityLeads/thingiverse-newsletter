@@ -60,6 +60,7 @@ export async function fetchCreators(usernames: string[]): Promise<Creator[]> {
         firstName,
         lastName,
         bio,
+        tagline: '',
         avatarPath,
         designs,
       };
@@ -84,6 +85,39 @@ async function fetchCreatorDesigns(userId: number): Promise<Design[]> {
   }));
 }
 
+function groupImagesByThing(result: MetabaseResponse): Map<number, string[]> {
+  const map = new Map<number, string[]>();
+  for (const row of result.data.rows) {
+    const thingId = row[0] as number;
+    const path = row[1] as string;
+    if (!map.has(thingId)) map.set(thingId, []);
+    map.get(thingId)!.push(path);
+  }
+  return map;
+}
+
+async function fetchThingSecondaryImages(thingIds: number[]): Promise<Map<number, string[]>> {
+  if (thingIds.length === 0) return new Map();
+  const ids = thingIds.join(', ');
+
+  try {
+    // Try thing_images junction table (most likely schema)
+    const sql = `SELECT ti.thing_id, i.path FROM thing_images ti JOIN images i ON ti.image_id = i.id WHERE ti.thing_id IN (${ids}) ORDER BY ti.thing_id, ti.sort_order LIMIT 50`;
+    const result = await queryMetabase(sql);
+    return groupImagesByThing(result);
+  } catch {
+    // Fallback: try querying images table directly
+    try {
+      const sql = `SELECT thing_id, path FROM images WHERE thing_id IN (${ids}) ORDER BY thing_id, id LIMIT 50`;
+      const result = await queryMetabase(sql);
+      return groupImagesByThing(result);
+    } catch {
+      console.warn('Could not fetch secondary images - table may not exist');
+      return new Map();
+    }
+  }
+}
+
 export async function fetchThings(thingIds: number[]): Promise<Thing[]> {
   if (thingIds.length === 0) return [];
 
@@ -93,7 +127,7 @@ export async function fetchThings(thingIds: number[]): Promise<Thing[]> {
 
   const result = await queryMetabase(sql);
 
-  return result.data.rows.map((row) => ({
+  const things: Thing[] = result.data.rows.map((row) => ({
     id: row[0] as number,
     name: (row[1] as string) || '',
     description: '',
@@ -101,10 +135,23 @@ export async function fetchThings(thingIds: number[]): Promise<Thing[]> {
     collectCount: (row[3] as number) || 0,
     commentCount: (row[4] as number) || 0,
     imagePath: (row[5] as string) || null,
+    secondaryImages: [],
     creator: {
       username: (row[6] as string) || '',
       firstName: (row[7] as string) || '',
       lastName: (row[8] as string) || '',
     },
   }));
+
+  // Try to get secondary images
+  const secondaryMap = await fetchThingSecondaryImages(thingIds);
+  for (const thing of things) {
+    const images = secondaryMap.get(thing.id) || [];
+    // Exclude the primary image, take up to 3
+    thing.secondaryImages = images
+      .filter((p) => p !== thing.imagePath)
+      .slice(0, 3);
+  }
+
+  return things;
 }
