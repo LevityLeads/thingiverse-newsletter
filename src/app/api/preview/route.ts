@@ -5,12 +5,19 @@ import { fetchCreators, fetchThings } from '@/lib/metabase';
 import { renderCreatorSpotlight } from '@/lib/templates/creator-spotlight';
 import { renderTheBuild } from '@/lib/templates/the-build';
 
+function normalizeUrl(url: string): string {
+  let u = url.trim();
+  if (!u.startsWith('http://') && !u.startsWith('https://')) {
+    u = 'https://' + u;
+  }
+  return u;
+}
+
 function parseUsername(url: string): string | null {
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(normalizeUrl(url));
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts.length === 0) return null;
-    // Skip if the first segment is a thing URL
     if (parts[0].startsWith('thing:')) return null;
     return parts[0];
   } catch {
@@ -19,8 +26,12 @@ function parseUsername(url: string): string | null {
 }
 
 function parseThingId(url: string): number | null {
+  // Handle bare "thing:12345" input
+  const bareMatch = url.trim().match(/^thing:(\d+)/);
+  if (bareMatch) return parseInt(bareMatch[1], 10);
+
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(normalizeUrl(url));
     const parts = parsed.pathname.split('/').filter(Boolean);
     for (const part of parts) {
       const match = part.match(/^thing:(\d+)/);
@@ -61,6 +72,14 @@ export async function POST(request: Request) {
       }
 
       const creators = await fetchCreators(usernames);
+
+      if (creators.length === 0) {
+        return NextResponse.json(
+          { error: `Metabase returned no data for usernames: ${usernames.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
+          { status: 404 }
+        );
+      }
+
       const html = renderCreatorSpotlight(creators, activeBanners);
 
       return NextResponse.json({ html, data: creators });
@@ -79,6 +98,14 @@ export async function POST(request: Request) {
       }
 
       const things = await fetchThings(thingIds);
+
+      if (things.length === 0) {
+        return NextResponse.json(
+          { error: `Metabase returned no data for thing IDs: ${thingIds.join(', ')}. The database replica may be lagging. Try again in a few minutes.` },
+          { status: 404 }
+        );
+      }
+
       const html = renderTheBuild(things, activeBanners);
 
       return NextResponse.json({ html, data: things });
