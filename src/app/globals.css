@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tv-blue: #2b52fe;
+  --color-tv-blue-light: #e8ecff;
+  --color-tv-dark: #1a1a2e;
+  --color-tv-gray: #6b7280;
+  --color-tv-red: #ef4444;
+  --color-tv-green: #22c55e;
+  --color-tv-yellow: #f59e0b;
+}
