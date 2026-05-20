@@ -9,89 +9,70 @@ import {
   renderDivider,
 } from './shared';
 
-const FONT_STACK = "'Barlow', Arial, Helvetica, sans-serif";
 const PRIMARY_BLUE = '#2b52fe';
-const DARK_TEXT = '#1a1a2e';
-const BODY_TEXT = '#333333';
-const MUTED_TEXT = '#666666';
 
-function truncateDescription(description: string, maxLength = 200): string {
-  if (!description) return '';
-  if (description.length <= maxLength) return description;
-  return description.slice(0, maxLength).trimEnd() + '...';
-}
-
-function renderThing(thing: Thing): string {
+/**
+ * Render a single featured thing card.
+ * Cards alternate between white (#ffffff) and light blue (#f5f7ff) backgrounds.
+ */
+function renderThingCard(thing: Thing, index: number): string {
+  const isEven = index % 2 === 0;
+  const bgColor = isEven ? '#ffffff' : '#f5f7ff';
   const imgSrc = imageUrl(thing.imagePath);
   const thingUrl = `${THINGIVERSE_URL}/thing:${thing.id}`;
-  const byLine = `${thing.creator.firstName} ${thing.creator.lastName}`.trim();
-  const desc = truncateDescription(thing.description);
+  const creatorUrl = `${THINGIVERSE_URL}/${thing.creator.username}`;
+  const creatorName =
+    thing.creator.firstName || thing.creator.lastName
+      ? `${thing.creator.firstName} ${thing.creator.lastName}`.trim()
+      : thing.creator.username;
 
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td style="padding:24px 24px 0 24px;">
-                    <a href="${thingUrl}" style="text-decoration:none;">
-                      <img src="${imgSrc}" alt="${thing.name}" width="552" style="display:block; width:100%; max-width:552px; height:300px; object-fit:cover; border-radius:8px; border:0;" />
-                    </a>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:16px 24px 0 24px; font-family:${FONT_STACK}; font-size:20px; font-weight:700;">
-                    <a href="${thingUrl}" style="color:${PRIMARY_BLUE}; text-decoration:none;">${thing.name}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:4px 24px 0 24px; font-family:${FONT_STACK}; font-size:14px; color:${MUTED_TEXT};">
-                    by ${byLine}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:12px 24px 0 24px; font-family:${FONT_STACK}; font-size:14px; color:${BODY_TEXT}; line-height:1.5;">
-                    ${desc}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:12px 24px 24px 24px; font-family:${FONT_STACK}; font-size:12px; color:${MUTED_TEXT};">
-                    ${thing.likeCount} like${thing.likeCount !== 1 ? 's' : ''} &middot; ${thing.collectCount} collect${thing.collectCount !== 1 ? 's' : ''} &middot; ${thing.commentCount} comment${thing.commentCount !== 1 ? 's' : ''}
-                  </td>
-                </tr>
-              </table>`;
+  return `      <tr><td style="background-color:${bgColor};padding:16px 32px 16px;" class="mobile-pad">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background-color:${bgColor};border:1px solid #e8ecff;border-radius:10px;overflow:hidden;box-shadow:0 4px 14px rgba(43,82,254,0.08);">
+      <tr><td style="padding:0;line-height:0;background-color:${bgColor};">
+        <a href="${thingUrl}" style="display:block;text-decoration:none;">
+          <img src="${imgSrc}" alt="${thing.name}" width="540" style="width:100%;height:auto;display:block;border:0;">
+        </a>
+      </td></tr>
+      <tr><td style="padding:24px 22px 6px;text-align:center;background-color:${bgColor};">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:${PRIMARY_BLUE};text-transform:uppercase;letter-spacing:1.8px;">Featured</p>
+        <p style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1a1a1a;line-height:1.2;letter-spacing:-0.3px;">${thing.name}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#999;">by <a href="${creatorUrl}" style="color:${PRIMARY_BLUE};text-decoration:none;font-weight:600;">${creatorName}</a></p>
+        <a href="${thingUrl}" style="display:inline-block;margin-top:14px;background-color:${PRIMARY_BLUE};color:#ffffff;font-size:13px;font-weight:700;padding:12px 28px;border-radius:8px;text-decoration:none;">View on Thingiverse</a>
+      </td></tr>
+    </table>
+  </td></tr>`;
 }
 
+/**
+ * Render the full "The Build" newsletter HTML.
+ *
+ * @param things - Featured things to include
+ * @param _banners - Banners (kept in signature for compatibility, not rendered inline)
+ */
 export function renderTheBuild(
   things: Thing[],
-  banners: Banner[]
+  _banners: Banner[]
 ): string {
-  const titleSection = `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td align="center" style="padding:32px 24px 0 24px; font-family:${FONT_STACK}; font-size:13px; font-weight:700; color:${PRIMARY_BLUE}; letter-spacing:3px; text-transform:uppercase;">
-                    THE BUILD
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding:8px 24px 0 24px; font-family:${FONT_STACK}; font-size:22px; font-weight:700; color:${DARK_TEXT}; line-height:1.3;">
-                    This Week's Featured Projects
-                  </td>
-                </tr>
-              </table>`;
+  const introSection = `      <!-- Intro -->
+      <tr><td style="background-color:#f5f7ff;padding:34px 40px 28px;text-align:center;" class="mobile-pad">
+        <p style="margin:0 0 10px;font-size:26px;font-weight:800;color:#1a1a1a;line-height:1.2;letter-spacing:-0.5px;">This week on Thingiverse.</p>
+        <p style="margin:0 0 0;font-size:15px;color:#444;line-height:1.65;">Here are some projects that caught our eye this week.</p>
+      </td></tr>`;
 
-  const thingSections = things
-    .map((thing, i) => {
-      const section = renderThing(thing);
-      if (i < things.length - 1) {
-        return section + '\n' + renderDivider();
-      }
-      return section;
-    })
-    .join('\n');
+  const thingCards = things
+    .map((thing, i) => renderThingCard(thing, i))
+    .join('\n\n');
 
   const content = [
-    renderHeader(),
-    titleSection,
-    thingSections,
-    renderBanners(banners),
+    renderHeader('The Build'),
+    introSection,
+    thingCards,
     renderFooter(),
-  ].join('\n');
+  ].join('\n\n');
 
-  return renderWrapper(content);
+  return renderWrapper(content, {
+    title: 'The Build',
+    preheaderText:
+      'This week on Thingiverse: featured projects from the community.',
+  });
 }

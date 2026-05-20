@@ -9,117 +9,120 @@ import {
   renderDivider,
 } from './shared';
 
-const FONT_STACK = "'Barlow', Arial, Helvetica, sans-serif";
 const PRIMARY_BLUE = '#2b52fe';
-const DARK_TEXT = '#1a1a2e';
-const BODY_TEXT = '#333333';
-const MUTED_TEXT = '#666666';
 
+/**
+ * Render a single design card within a creator's 2x2 grid.
+ * Card: image (100% width, 130px height, object-fit cover), name (13px semibold).
+ * Shadow and rounded corners match production.
+ */
+function renderDesignCard(design: Design, isRight: boolean, isBottom: boolean): string {
+  const imgSrc = imageUrl(design.imagePath);
+  const thingUrl = `${THINGIVERSE_URL}/thing:${design.id}`;
+  const paddingStyle = isRight
+    ? `padding:0 0 ${isBottom ? '0' : '10px'} 5px`
+    : `padding:0 5px ${isBottom ? '0' : '10px'} 0`;
+
+  return `<td width="50%" style="${paddingStyle};vertical-align:top;" class="mobile-stack">
+      <a href="${thingUrl}" style="display:block;text-decoration:none;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background-color:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <tr><td><img src="${imgSrc}" alt="${design.name}" style="width:100%;height:130px;object-fit:cover;object-position:center;border:0;display:block;"></td></tr>
+          <tr><td style="padding:10px 12px 12px;">
+            <p style="margin:0;font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3;">${design.name}</p>
+          </td></tr>
+        </table>
+      </a>
+    </td>`;
+}
+
+/**
+ * Render the 2x2 design grid for a creator.
+ * Takes up to 4 designs. If fewer than 4, only renders what's available.
+ */
 function renderDesignGrid(designs: Design[]): string {
   const top4 = designs.slice(0, 4);
   if (top4.length === 0) return '';
 
-  // Pad to 4 if fewer designs
-  while (top4.length < 4) {
-    top4.push(null as unknown as Design);
-  }
-
   const rows: string[] = [];
-  for (let r = 0; r < 2; r++) {
-    const left = top4[r * 2];
-    const right = top4[r * 2 + 1];
-    rows.push(`                        <tr>
-                          <td width="50%" valign="top" style="padding:4px;">
-                            ${left ? renderDesignCard(left) : '&nbsp;'}
-                          </td>
-                          <td width="50%" valign="top" style="padding:4px;">
-                            ${right ? renderDesignCard(right) : '&nbsp;'}
-                          </td>
-                        </tr>`);
+
+  // Row 1: designs 0 and 1
+  if (top4.length >= 1) {
+    const left = renderDesignCard(top4[0], false, top4.length <= 2);
+    const right = top4[1]
+      ? renderDesignCard(top4[1], true, top4.length <= 2)
+      : '<td width="50%" style="vertical-align:top;" class="mobile-stack">&nbsp;</td>';
+    rows.push(`                        <tr>${left}${right}</tr>`);
   }
 
-  return `                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+  // Row 2: designs 2 and 3
+  if (top4.length >= 3) {
+    const left = renderDesignCard(top4[2], false, true);
+    const right = top4[3]
+      ? renderDesignCard(top4[3], true, true)
+      : '<td width="50%" style="vertical-align:top;" class="mobile-stack">&nbsp;</td>';
+    rows.push(`                        <tr>${left}${right}</tr>`);
+  }
+
+  return `                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
 ${rows.join('\n')}
-                      </table>`;
+                    </table>`;
 }
 
-function renderDesignCard(design: Design): string {
-  const imgSrc = imageUrl(design.imagePath);
-  const thingUrl = `${THINGIVERSE_URL}/thing:${design.id}`;
-
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                              <tr>
-                                <td>
-                                  <a href="${thingUrl}" style="text-decoration:none;">
-                                    <img src="${imgSrc}" alt="${design.name}" width="270" style="display:block; width:100%; max-width:270px; height:180px; object-fit:cover; border-radius:8px; border:0;" />
-                                  </a>
-                                </td>
-                              </tr>
-                              <tr>
-                                <td style="padding:6px 0 2px 0; font-family:${FONT_STACK}; font-size:13px; line-height:1.3;">
-                                  <a href="${thingUrl}" style="color:${BODY_TEXT}; text-decoration:none;">${design.name}</a>
-                                </td>
-                              </tr>
-                              <tr>
-                                <td style="font-family:${FONT_STACK}; font-size:11px; color:${MUTED_TEXT};">
-                                  ${design.likeCount} like${design.likeCount !== 1 ? 's' : ''}
-                                </td>
-                              </tr>
-                            </table>`;
-}
-
+/**
+ * Render a single creator section: avatar, name, tagline, bio, design grid.
+ */
 function renderCreator(creator: Creator): string {
   const avatarSrc = imageUrl(creator.avatarPath);
   const profileUrl = `${THINGIVERSE_URL}/${creator.username}`;
-  const fullName = `${creator.firstName} ${creator.lastName}`.trim();
+  const fullName = `${creator.firstName} ${creator.lastName}`.trim() || creator.username;
 
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td align="center" style="padding:24px 24px 0 24px;">
+  // Generate a tagline from design count + likes
+  const totalLikes = creator.designs.reduce((sum, d) => sum + d.likeCount, 0);
+  const tagline =
+    totalLikes > 1000
+      ? `${creator.designs.length} Designs, ${Math.round(totalLikes / 1000)}K Likes`
+      : `${creator.designs.length} Designs`;
+
+  const bioHtml = creator.bio
+    ? `\n                <tr><td style="padding:10px 50px 0;text-align:center;" class="mobile-pad">
+                    <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">${creator.bio}</p>
+                </td></tr>`
+    : '';
+
+  return `                <!-- ${fullName} -->
+                <tr><td style="padding:32px 40px 0;text-align:center;" class="mobile-pad">
                     <a href="${profileUrl}" style="text-decoration:none;">
-                      <img src="${avatarSrc}" alt="${fullName}" width="80" height="80" style="display:block; width:80px; height:80px; border-radius:50%; border:3px solid ${PRIMARY_BLUE}; object-fit:cover;" />
+                        <img src="${avatarSrc}" alt="${fullName}" style="width:80px;height:80px;border-radius:50%;border:3px solid ${PRIMARY_BLUE};display:inline-block;object-fit:cover;">
                     </a>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding:12px 24px 0 24px; font-family:${FONT_STACK}; font-size:18px; font-weight:700;">
-                    <a href="${profileUrl}" style="color:${PRIMARY_BLUE}; text-decoration:none;">${fullName}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding:2px 24px 0 24px; font-family:${FONT_STACK}; font-size:13px; color:${MUTED_TEXT}; font-style:italic;">
-                    Thingiverse Creator
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:12px 24px 0 24px; font-family:${FONT_STACK}; font-size:14px; color:${BODY_TEXT}; line-height:1.5;">
-                    ${creator.bio}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:16px 20px 24px 20px;">
+                </td></tr>
+                <tr><td style="padding:12px 40px 0;text-align:center;" class="mobile-pad">
+                    <h2 style="margin:0;font-size:20px;font-weight:700;color:#1a1a1a;">
+                        <a href="${profileUrl}" style="color:#1a1a1a;text-decoration:none;">${fullName}</a>
+                    </h2>
+                    <p style="margin:4px 0 0;font-size:13px;color:${PRIMARY_BLUE};font-weight:500;">${tagline}</p>
+                </td></tr>${bioHtml}
+                <tr><td style="padding:20px 34px 28px;" class="mobile-pad">
 ${renderDesignGrid(creator.designs)}
-                  </td>
-                </tr>
-              </table>`;
+                </td></tr>`;
 }
 
+/**
+ * Render the full "Creator Spotlight" newsletter HTML.
+ *
+ * @param creators - Featured creators with their designs
+ * @param _banners - Banners (kept in signature for compatibility, not rendered inline)
+ */
 export function renderCreatorSpotlight(
   creators: Creator[],
-  banners: Banner[]
+  _banners: Banner[]
 ): string {
-  const titleSection = `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td align="center" style="padding:32px 24px 0 24px; font-family:${FONT_STACK}; font-size:13px; font-weight:700; color:${PRIMARY_BLUE}; letter-spacing:3px; text-transform:uppercase;">
-                    CREATOR SPOTLIGHT
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding:8px 24px 0 24px; font-family:${FONT_STACK}; font-size:22px; font-weight:700; color:${DARK_TEXT}; line-height:1.3;">
-                    Meet This Week's Featured Makers
-                  </td>
-                </tr>
-              </table>`;
+  const titleSection = `                <!-- Title -->
+                <tr><td style="padding:28px 40px 24px;text-align:center;" class="mobile-pad">
+                    <h1 style="margin:0;font-size:24px;font-weight:700;color:#1a1a1a;text-transform:uppercase;letter-spacing:1.5px;">Creator Spotlight</h1>
+                </td></tr>
+
+                <!-- Divider -->
+                <tr><td style="padding:0 40px;" class="mobile-pad"><div style="border-top:1px solid #eee;"></div></td></tr>`;
 
   const creatorSections = creators
     .map((creator, i) => {
@@ -129,15 +132,18 @@ export function renderCreatorSpotlight(
       }
       return section;
     })
-    .join('\n');
+    .join('\n\n');
 
   const content = [
     renderHeader(),
     titleSection,
     creatorSections,
-    renderBanners(banners),
     renderFooter(),
-  ].join('\n');
+  ].join('\n\n');
 
-  return renderWrapper(content);
+  return renderWrapper(content, {
+    title: 'Creator Spotlight',
+    preheaderText: 'Meet this week\'s featured creators from the Thingiverse community.',
+    mobileStyles: '.mobile-stack { width:100% !important; display:block !important; padding:0 0 10px 0 !important; }',
+  });
 }

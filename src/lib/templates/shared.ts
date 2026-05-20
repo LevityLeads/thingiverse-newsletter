@@ -1,10 +1,7 @@
 import { IMAGE_CDN, THINGIVERSE_URL } from '../config';
 import type { Banner } from '../types';
 
-const FONT_STACK = "'Barlow', Arial, Helvetica, sans-serif";
 const PRIMARY_BLUE = '#2b52fe';
-const BG_COLOR = '#f4f4f8';
-const MUTED_TEXT = '#666666';
 
 export function imageUrl(path: string | null): string {
   if (!path) {
@@ -16,94 +13,132 @@ export function imageUrl(path: string | null): string {
   return `${IMAGE_CDN}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
-export function renderWrapper(content: string): string {
-  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+/**
+ * Full HTML document wrapper matching production emails.
+ * Includes doctype, head with Barlow font, MSO conditionals, mobile responsive
+ * styles, body with #f0f2f5 background, and the outer centering table.
+ *
+ * @param content - Inner table rows (header through footer)
+ * @param title - Document <title> text
+ * @param preheaderText - Hidden preview text for email clients
+ * @param mobileStyles - Additional mobile CSS rules (e.g. .mobile-stack)
+ */
+export function renderWrapper(
+  content: string,
+  options: {
+    title?: string;
+    preheaderText?: string;
+    mobileStyles?: string;
+  } = {}
+): string {
+  const {
+    title = 'Thingiverse',
+    preheaderText = 'New from the Thingiverse community this week.',
+    mobileStyles = '',
+  } = options;
+
+  const allMobileStyles = `
+      .mobile-outer-pad { padding: 0 !important; }
+      .mobile-pad { padding-left: 20px !important; padding-right: 20px !important; }
+      ${mobileStyles}`.trim();
+
+  return `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Thingiverse</title>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet" />
-  <!--[if mso]>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${title}</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+  <!--[if !mso]><!-->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style type="text/css">
-    body, table, td { font-family: Arial, Helvetica, sans-serif !important; }
+    @media only screen and (max-width: 600px) {
+      ${allMobileStyles}
+    }
   </style>
-  <![endif]-->
+  <!--<![endif]-->
 </head>
-<body style="margin:0; padding:0; background-color:${BG_COLOR}; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${BG_COLOR};">
-    <tr>
-      <td align="center" style="padding:24px 0;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden;">
-          <tr>
-            <td>
+<body style="margin:0;padding:0;width:100%;word-break:break-word;-webkit-font-smoothing:antialiased;background-color:#f0f2f5;font-family:'Barlow',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0f2f5;">${preheaderText} &#847; &#847; &#847;</div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+  <tr><td class="mobile-outer-pad" style="padding:16px 8px;text-align:center;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 auto;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 24px rgba(0,0,0,0.08);">
+
 ${content}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+
+    </table>
+  </td></tr>
   </table>
 </body>
 </html>`;
 }
 
-export function renderHeader(): string {
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${PRIMARY_BLUE};">
-                <tr>
-                  <td align="center" height="48" style="height:48px; font-family:${FONT_STACK}; font-size:20px; font-weight:700; color:#ffffff; letter-spacing:4px;">
-                    <a href="${THINGIVERSE_URL}" style="color:#ffffff; text-decoration:none; letter-spacing:4px;">THINGIVERSE</a>
-                  </td>
-                </tr>
-              </table>`;
+/**
+ * Blue header bar with white Thingiverse logo image.
+ * Optionally includes a subtitle line (e.g. "The Build").
+ */
+export function renderHeader(subtitle?: string): string {
+  const subtitleHtml = subtitle
+    ? `\n        <p style="margin:14px 0 0;font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:3px;font-weight:600;">${subtitle}</p>`
+    : '';
+
+  return `      <!-- Header -->
+      <tr><td style="background-color:${PRIMARY_BLUE};padding:28px 40px ${subtitle ? '26px' : '24px'};text-align:center;" class="mobile-pad">
+        <a href="${THINGIVERSE_URL}" style="text-decoration:none;">
+          <img src="https://tg-content.vercel.app/assets/thingiverse-logo-white.png" alt="Thingiverse" style="height:42px;border:0;display:inline-block;">
+        </a>${subtitleHtml}
+      </td></tr>`;
 }
 
+/**
+ * "Dare to be human" outro + divider + footer with unsubscribe links.
+ */
 export function renderFooter(): string {
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${BG_COLOR};">
-                <tr>
-                  <td align="center" style="padding:24px 32px; font-family:${FONT_STACK}; font-size:12px; color:${MUTED_TEXT}; line-height:1.6;">
-                    You're receiving this because you're part of the Thingiverse community.
-                    <br />
-                    <a href="{{{unsubscribe}}}" style="color:${MUTED_TEXT}; text-decoration:underline;">Unsubscribe</a>
-                    &nbsp;&middot;&nbsp;
-                    <a href="{{{unsubscribe_preferences}}}" style="color:${MUTED_TEXT}; text-decoration:underline;">Email Preferences</a>
-                  </td>
-                </tr>
-              </table>`;
+  return `      <!-- Outro -->
+      <tr><td style="background-color:#ffffff;padding:24px 40px 34px;text-align:center;" class="mobile-pad">
+        <p style="margin:0 0 4px;font-size:13px;color:#999;line-height:1.6;">Built by humans. Shared openly.</p>
+        <p style="margin:0;font-size:11px;font-weight:700;color:${PRIMARY_BLUE};text-transform:uppercase;letter-spacing:3px;">Dare to be human</p>
+      </td></tr>
+
+      <tr><td style="padding:0;"><hr style="border:none;border-top:1px solid #f0f2f5;margin:0;"></td></tr>
+
+      <!-- Footer -->
+      <tr><td style="background-color:#ffffff;padding:24px 40px 28px;text-align:center;border-top:1px solid #eee;" class="mobile-pad">
+        <p style="margin:0 0 10px;font-size:13px;color:#999;line-height:1.5;">You are receiving this because you are part of the Thingiverse community.</p>
+        <p style="margin:0;font-size:12px;color:#bbb;">
+          <a href="{{{unsubscribe}}}" style="color:${PRIMARY_BLUE};text-decoration:underline;">Unsubscribe</a> &nbsp;|&nbsp; <a href="{{{unsubscribe_preferences}}}" style="color:${PRIMARY_BLUE};text-decoration:underline;">Email Preferences</a>
+        </p>
+      </td></tr>`;
 }
 
+/**
+ * Render active banners as full-width images.
+ * Kept as a utility but NOT included inline in email templates by default.
+ */
 export function renderBanners(banners: Banner[]): string {
   const activeBanners = banners.filter((b) => b.active);
   if (activeBanners.length === 0) return '';
 
-  const bannerRows = activeBanners
+  const rows = activeBanners
     .map(
-      (banner, i) => `                <tr>
-                  ${i > 0 ? `<td style="height:8px; font-size:0; line-height:0;">&nbsp;</td></tr><tr>` : ''}
-                  <td align="center" style="padding:0 24px;">
-                    <a href="${banner.linkUrl}" style="text-decoration:none;">
-                      <img src="${banner.imageUrl}" alt="${banner.name}" width="552" style="display:block; width:100%; max-width:552px; height:auto; border-radius:8px; border:0;" />
-                    </a>
-                  </td>
-                </tr>`
+      (banner, i) =>
+        `      <tr><td style="padding:${i === 0 ? '28px' : '16px'} 0 0;">
+        <a href="${banner.linkUrl}" style="text-decoration:none;">
+          <img src="${banner.imageUrl}" alt="${banner.name}" width="600" style="width:100%;display:block;border-radius:8px;" />
+        </a>
+      </td></tr>`
     )
     .join('\n');
 
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding:16px 0;">
-${bannerRows}
-              </table>`;
+  return rows;
 }
 
+/**
+ * Horizontal divider line inside the card.
+ */
 export function renderDivider(): string {
-  return `              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td style="padding:24px 32px;">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                      <tr>
-                        <td style="border-top:1px solid #e5e7eb; height:1px; font-size:0; line-height:0;">&nbsp;</td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>`;
+  return `      <tr><td style="padding:28px 40px 0;" class="mobile-pad"><div style="border-top:1px solid #eee;"></div></td></tr>`;
 }
