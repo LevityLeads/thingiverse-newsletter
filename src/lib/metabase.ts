@@ -89,22 +89,22 @@ export async function fetchThings(thingIds: number[]): Promise<Thing[]> {
 
   const ids = thingIds.join(', ');
 
-  const sql = `SELECT t.id, t.name, t.description, t.like_count, t.collect_count, t.comment_count, i.path as image_path, u.username, u.first_name, u.last_name FROM things t LEFT JOIN images i ON t.image_id = i.id LEFT JOIN users u ON t.user_id = u.id WHERE t.id IN (${ids})`;
+  const sql = `SELECT t.id, t.name, t.like_count, t.collect_count, t.comment_count, i.path as image_path, u.username, u.first_name, u.last_name FROM things t LEFT JOIN images i ON t.image_id = i.id LEFT JOIN users u ON t.user_id = u.id WHERE t.id IN (${ids})`;
 
   const result = await queryMetabase(sql);
 
   return result.data.rows.map((row) => ({
     id: row[0] as number,
     name: (row[1] as string) || '',
-    description: (row[2] as string) || '',
-    likeCount: (row[3] as number) || 0,
-    collectCount: (row[4] as number) || 0,
-    commentCount: (row[5] as number) || 0,
-    imagePath: (row[6] as string) || null,
+    description: '',
+    likeCount: (row[2] as number) || 0,
+    collectCount: (row[3] as number) || 0,
+    commentCount: (row[4] as number) || 0,
+    imagePath: (row[5] as string) || null,
     creator: {
-      username: (row[7] as string) || '',
-      firstName: (row[8] as string) || '',
-      lastName: (row[9] as string) || '',
+      username: (row[6] as string) || '',
+      firstName: (row[7] as string) || '',
+      lastName: (row[8] as string) || '',
     },
   }));
 }
