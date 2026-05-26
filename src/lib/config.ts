@@ -20,6 +20,12 @@ export const METABASE_DB = 28;
 
 export const DEFAULT_SEND_HOUR_UTC = 17; // 5pm UTC
 
+// Base URL for the app itself (used for self-hosted assets in emails)
+// Falls back to VERCEL_URL in production, localhost in dev
+export const APP_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 export const STAT_THRESHOLDS = {
   deliveryMin: 0.95,
   opensMin: 0.15,

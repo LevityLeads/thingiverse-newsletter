@@ -1,4 +1,4 @@
-import { IMAGE_CDN, THINGIVERSE_URL } from '../config';
+import { APP_BASE_URL, IMAGE_CDN, THINGIVERSE_URL } from '../config';
 import type { CustomBlock } from '../types';
 
 const PRIMARY_BLUE = '#2b52fe';
@@ -88,7 +88,7 @@ export function renderHeader(subtitle?: string): string {
   return `      <!-- Header -->
       <tr><td style="background-color:${PRIMARY_BLUE};padding:28px 40px ${subtitle ? '26px' : '24px'};text-align:center;" class="mobile-pad">
         <a href="${THINGIVERSE_URL}" style="text-decoration:none;">
-          <img src="https://tg-content.vercel.app/assets/thingiverse-logo-white.png" alt="Thingiverse" style="height:42px;border:0;display:inline-block;">
+          <img src="${APP_BASE_URL}/assets/thingiverse-logo-white.png" alt="Thingiverse" style="height:42px;border:0;display:inline-block;">
         </a>${subtitleHtml}
       </td></tr>`;
 }

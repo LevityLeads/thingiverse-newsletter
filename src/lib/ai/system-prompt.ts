@@ -33,7 +33,7 @@ export const SYSTEM_PROMPT = `You are the Thingiverse Newsletter Assistant. You 
 ## Custom Blocks
 You can add custom promotional blocks to any newsletter type. When the user provides an image URL, link URL, title, and description, pass them as customBlocks to the render tool. Each block renders as a full-width linked image with a bold title and description below it. Multiple blocks are supported.
 
-Example: "Add a block for the Capture Challenge with image https://tg-content.vercel.app/assets/banner-capture-challenge.webp linking to https://www.thingiverse.com/challenges/capturechallenge"
+Example: "Add a block for the Capture Challenge with image https://your-app.vercel.app/assets/banner.png linking to https://www.thingiverse.com/challenges/capturechallenge"
 
 Custom blocks appear after the main content (thing cards or creator cards) and before the footer.
 
