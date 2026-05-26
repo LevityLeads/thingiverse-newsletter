@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { NewsletterType, Thing, Creator } from '@/lib/types';
-import { BANNERS } from '@/lib/config';
+import type { NewsletterType, Thing, Creator, CustomBlock } from '@/lib/types';
 import { fetchCreators, fetchThings } from '@/lib/metabase';
 import { renderCreatorSpotlight } from '@/lib/templates/creator-spotlight';
 import { renderTheBuild } from '@/lib/templates/the-build';
@@ -9,7 +8,10 @@ import { parseUsername, parseThingId } from '@/lib/url-parser';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { type } = body as { type: NewsletterType };
+    const { type, customBlocks: rawBlocks } = body as {
+      type: NewsletterType;
+      customBlocks?: CustomBlock[];
+    };
 
     if (!type) {
       return NextResponse.json(
@@ -18,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const activeBanners = BANNERS.filter((b) => b.active);
+    const customBlocks = Array.isArray(rawBlocks) ? rawBlocks : undefined;
 
     if (type === 'creator-spotlight') {
       let creators: Creator[];
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const html = renderCreatorSpotlight(creators, activeBanners);
+      const html = renderCreatorSpotlight(creators, customBlocks);
       return NextResponse.json({ html, data: creators });
     }
 
@@ -93,7 +95,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const html = renderTheBuild(things, activeBanners, introText);
+      const html = renderTheBuild(things, introText, customBlocks);
       return NextResponse.json({ html, data: things });
     }
 

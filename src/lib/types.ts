@@ -34,12 +34,11 @@ export interface Thing {
   };
 }
 
-export interface Banner {
-  name: string;
+export interface CustomBlock {
   imageUrl: string;
   linkUrl: string;
+  title: string;
   description: string;
-  active: boolean;
 }
 
 export type NewsletterType = 'creator-spotlight' | 'the-build';

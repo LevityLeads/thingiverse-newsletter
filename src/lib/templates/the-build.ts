@@ -1,10 +1,11 @@
 import { THINGIVERSE_URL } from '../config';
-import type { Thing, Banner } from '../types';
+import type { Thing, CustomBlock } from '../types';
 import {
   imageUrl,
   renderWrapper,
   renderHeader,
   renderFooter,
+  renderCustomBlocks,
 } from './shared';
 
 const PRIMARY_BLUE = '#2b52fe';
@@ -82,13 +83,13 @@ ${secondaryHtml}
  * Render the full "The Build" newsletter HTML.
  *
  * @param things - Featured things to include
- * @param _banners - Banners (kept in signature for compatibility, not rendered inline)
  * @param introText - Optional custom intro paragraph text
+ * @param customBlocks - Optional promotional blocks rendered after thing cards
  */
 export function renderTheBuild(
   things: Thing[],
-  _banners: Banner[],
-  introText?: string
+  introText?: string,
+  customBlocks?: CustomBlock[],
 ): string {
   const intro = introText || 'Here are some projects that caught our eye this week.';
 
@@ -102,12 +103,15 @@ export function renderTheBuild(
     .map((thing, i) => renderThingCard(thing, i))
     .join('\n\n');
 
+  const customBlocksHtml = customBlocks ? renderCustomBlocks(customBlocks) : '';
+
   const content = [
     renderHeader('The Build'),
     introSection,
     thingCards,
+    customBlocksHtml,
     renderFooter(),
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 
   return renderWrapper(content, {
     title: 'The Build',

@@ -4,8 +4,8 @@ import { fetchThings, fetchCreators } from '@/lib/metabase';
 import { renderTheBuild } from '@/lib/templates/the-build';
 import { renderCreatorSpotlight } from '@/lib/templates/creator-spotlight';
 import { sendTestEmail, createSingleSend, scheduleSend } from '@/lib/sendgrid';
-import { BANNERS, SEGMENTS } from '@/lib/config';
-import type { Thing, Creator } from '@/lib/types';
+import { SEGMENTS } from '@/lib/config';
+import type { Thing, Creator, CustomBlock } from '@/lib/types';
 
 export const newsletterTools = {
   pullThingData: tool({
@@ -38,7 +38,7 @@ export const newsletterTools = {
 
   renderNewsletter: tool({
     description:
-      'Render a newsletter email to HTML. For The Build: pass things array with descriptions filled in. For Creator Spotlight: pass creators array with taglines and bios.',
+      'Render a newsletter email to HTML. For The Build: pass things array with descriptions filled in. For Creator Spotlight: pass creators array with taglines and bios. Optionally include customBlocks for promotional sections.',
     inputSchema: z.object({
       type: z.enum(['the-build', 'creator-spotlight']),
       introText: z
@@ -87,24 +87,36 @@ export const newsletterTools = {
           })
         )
         .optional(),
+      customBlocks: z
+        .array(
+          z.object({
+            imageUrl: z.string().describe('Full URL to the block image'),
+            linkUrl: z.string().describe('URL the block links to'),
+            title: z.string().describe('Bold title for the block'),
+            description: z.string().describe('Short description text'),
+          })
+        )
+        .optional()
+        .describe('Optional promotional blocks added after the main content'),
     }),
     execute: async ({
       type,
       introText,
       things,
       creators,
+      customBlocks,
     }: {
       type: 'the-build' | 'creator-spotlight';
       introText?: string;
       things?: unknown[];
       creators?: unknown[];
+      customBlocks?: CustomBlock[];
     }) => {
-      const activeBanners = BANNERS.filter((b) => b.active);
       let html: string;
       if (type === 'the-build' && things) {
-        html = renderTheBuild(things as unknown as Thing[], activeBanners, introText);
+        html = renderTheBuild(things as unknown as Thing[], introText, customBlocks);
       } else if (type === 'creator-spotlight' && creators) {
-        html = renderCreatorSpotlight(creators as unknown as Creator[], activeBanners);
+        html = renderCreatorSpotlight(creators as unknown as Creator[], customBlocks);
       } else {
         return {
           error:

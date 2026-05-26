@@ -1,5 +1,5 @@
 import { IMAGE_CDN, THINGIVERSE_URL } from '../config';
-import type { Banner } from '../types';
+import type { CustomBlock } from '../types';
 
 const PRIMARY_BLUE = '#2b52fe';
 
@@ -115,20 +115,33 @@ export function renderFooter(): string {
 }
 
 /**
- * Render active banners as full-width images.
- * Kept as a utility but NOT included inline in email templates by default.
+ * Render custom promotional blocks.
+ * Each block: full-width linked image, bold title, description text.
+ * Separated by a thin gray line. Email-safe table layout with inline styles.
  */
-export function renderBanners(banners: Banner[]): string {
-  const activeBanners = banners.filter((b) => b.active);
-  if (activeBanners.length === 0) return '';
+export function renderCustomBlocks(blocks: CustomBlock[]): string {
+  if (!blocks || blocks.length === 0) return '';
 
-  const rows = activeBanners
+  const rows = blocks
     .map(
-      (banner, i) =>
-        `      <tr><td style="padding:${i === 0 ? '28px' : '16px'} 0 0;">
-        <a href="${banner.linkUrl}" style="text-decoration:none;">
-          <img src="${banner.imageUrl}" alt="${banner.name}" width="600" style="width:100%;display:block;border-radius:8px;" />
-        </a>
+      (block) =>
+        `      <tr><td style="padding:24px 40px 0;" class="mobile-pad">
+        <div style="border-top:1px solid #e5e7eb;"></div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-top:24px;">
+          <tr><td style="padding:0;">
+            <a href="${block.linkUrl}" style="display:block;text-decoration:none;">
+              <img src="${block.imageUrl}" alt="${block.title}" width="520" style="width:100%;max-width:560px;display:block;border-radius:8px;border:0;">
+            </a>
+          </td></tr>
+          <tr><td style="padding:12px 0 0;">
+            <a href="${block.linkUrl}" style="text-decoration:none;">
+              <p style="margin:0;font-size:18px;font-weight:700;color:#333;line-height:1.3;">${block.title}</p>
+            </a>
+          </td></tr>
+          <tr><td style="padding:6px 0 0;">
+            <p style="margin:0;font-size:14px;color:#666;line-height:1.5;">${block.description}</p>
+          </td></tr>
+        </table>
       </td></tr>`
     )
     .join('\n');
