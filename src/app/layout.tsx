@@ -28,6 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/sends" className="text-sm font-medium text-gray-600 hover:text-tv-blue">
               Sends
             </Link>
+            <Link href="/chat" className="text-sm font-medium text-gray-600 hover:text-tv-blue">
+              Chat
+            </Link>
           </div>
         </nav>
         <main>{children}</main>
